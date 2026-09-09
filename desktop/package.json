@@ -1,0 +1,24 @@
+{
+  "name": "aither-apps-desktop",
+  "version": "1.0.0",
+  "description": "Aither Apps desktop launcher",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^38.1.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.aitherforge.aitherapps",
+    "productName": "Aither Apps",
+    "directories": { "output": "dist" },
+    "files": ["**/*", "!dist/**"],
+    "mac": { "category": "public.app-category.utilities" },
+    "win": { "target": "nsis" },
+    "linux": { "target": "AppImage", "category": "Utility" }
+  }
+}
