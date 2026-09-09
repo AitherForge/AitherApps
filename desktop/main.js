@@ -42,104 +42,86 @@ function createLauncher() {
   launcher.loadFile(path.join(__dirname, 'index.html'));
 }
 
-// Weather is the first app to receive the new desktop-first treatment.
-// The web build remains untouched for phones/tablets; these styles and
-// shortcuts are applied only to the native Aither Apps window.
-function enhanceWeatherWindow(win) {
+// Clock gets its own desktop-first presentation while the hosted app keeps
+// its mobile-first design. We reuse existing Clock controls rather than
+// creating a second clock implementation.
+function enhanceClockWindow(win) {
   const desktopCss = `
     :root { --aither-desktop-gap: 18px; }
-    body { min-width: 1100px; }
-    .app-header {
-      position: sticky !important;
-      top: 0 !important;
-      z-index: 1000 !important;
-      backdrop-filter: blur(24px);
-    }
-    .app-main {
-      width: min(1600px, calc(100vw - 48px)) !important;
-      margin: 0 auto !important;
-      display: grid !important;
-      grid-template-columns: minmax(0, 1.7fr) minmax(360px, 0.8fr) !important;
-      gap: var(--aither-desktop-gap) !important;
-      align-items: start !important;
-    }
-    .hero, .alerts-panel, .offline-banner, .hourly-card, .forecast-card-panel,
-    .current-card, .radar-card, .locations-card, .air-card, .roast-card,
-    .nowcast-card { min-width: 0; }
-    .hero, .alerts-panel, .offline-banner, .hourly-card, .forecast-card-panel,
-    .current-card, .radar-card, .locations-card, .air-card, .roast-card,
-    .nowcast-card { grid-column: 1; }
-    .hero { grid-row: 1; }
-    .alerts-panel { grid-row: 2; }
-    .hourly-card { grid-row: 3; }
-    .forecast-card-panel { grid-row: 4; }
-    .current-card { grid-row: 5; }
-    .radar-card, .locations-card, .air-card, .roast-card, .nowcast-card {
-      grid-column: 2;
-      grid-row: auto;
-    }
-    .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-    .forecast-row { overflow-x: auto; }
-    .hour-strip-wrap { overflow-x: auto; }
-    .radar-card canvas { max-height: 72vh; }
+    body { min-width: 1100px !important; }
+    .app { width: min(1600px, calc(100vw - 48px)) !important; max-width: none !important; }
+    .topbar { position: sticky; top: 0; z-index: 100; padding: 12px 0; backdrop-filter: blur(20px); }
+    .clock-card { display: grid !important; grid-template-columns: minmax(420px, 1fr) minmax(430px, 1fr) !important; align-items: center; gap: 28px; padding: 34px !important; }
+    .clock-card .date, .clock-card .digital, .clock-card .period { grid-column: 1; }
+    .clock-card .analog { grid-column: 2; grid-row: 1 / span 3; width: min(520px, 34vw) !important; margin: 0 auto !important; }
+    .digital { font-size: clamp(64px, 7vw, 120px) !important; }
+    .tabs { position: sticky !important; top: 72px !important; z-index: 90; max-width: none !important; }
+    .panel { padding: 24px !important; }
+    .settings-grid { grid-template-columns: repeat(4, minmax(180px, 1fr)) !important; }
+    .world-grid { grid-template-columns: repeat(4, minmax(210px, 1fr)) !important; }
+    .sound-box, .update-box, .backend-box { grid-template-columns: minmax(0, 1fr) auto !important; }
+    .tool-display { font-size: clamp(64px, 7vw, 110px) !important; }
+    .timer-inputs input { width: 140px !important; font-size: 28px !important; }
+    .alarms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    footer { padding-bottom: 24px; }
     @media (max-width: 1200px) {
-      body { min-width: 900px; }
-      .app-main { grid-template-columns: 1fr !important; }
-      .radar-card, .locations-card, .air-card, .roast-card, .nowcast-card,
-      .hero, .alerts-panel, .offline-banner, .hourly-card, .forecast-card-panel,
-      .current-card { grid-column: 1 !important; }
+      body { min-width: 900px !important; }
+      .clock-card { grid-template-columns: 1fr !important; }
+      .clock-card .analog { grid-column: 1; grid-row: auto; width: min(430px, 45vw) !important; }
+      .settings-grid { grid-template-columns: repeat(3, minmax(160px, 1fr)) !important; }
+      .world-grid { grid-template-columns: repeat(3, minmax(190px, 1fr)) !important; }
     }
   `;
-
-  const desktopScript = `
+  const script = `
     (() => {
       document.documentElement.dataset.aitherDesktop = 'true';
       const style = document.createElement('style');
-      style.id = 'aither-desktop-weather-style';
+      style.id = 'aither-desktop-clock-style';
       style.textContent = ${JSON.stringify(desktopCss)};
       document.head.appendChild(style);
 
-      // Desktop-only keyboard shortcuts. They map to controls already
-      // present in the weather app, so there is no duplicate app logic.
+      const shortcuts = {
+        '1': 'clockPanel', '2': 'worldPanel', '3': 'stopwatchPanel',
+        '4': 'timerPanel', '5': 'alarmPanel'
+      };
       document.addEventListener('keydown', (event) => {
         if (event.defaultPrevented) return;
+        const tag = event.target && event.target.tagName;
+        const editing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || event.target?.isContentEditable;
         const mod = event.ctrlKey || event.metaKey;
-        if (mod && event.shiftKey && event.key.toLowerCase() === 'l') {
-          event.preventDefault();
-          const input = document.getElementById('searchInput');
-          if (input) { input.focus(); input.select(); }
+        if (!editing && !mod && shortcuts[event.key]) {
+          const tab = document.querySelector('.tab[data-panel="' + shortcuts[event.key] + '"]');
+          if (tab) { event.preventDefault(); tab.click(); }
         }
-        if (mod && event.shiftKey && event.key.toLowerCase() === 'r') {
-          event.preventDefault();
-          const button = document.getElementById('refreshBtn');
-          if (button) button.click();
+        if (!editing && !mod && event.key.toLowerCase() === 'f') {
+          const button = document.getElementById('fullscreenBtn');
+          if (button) { event.preventDefault(); button.click(); }
         }
-        if (event.key === 'Escape') {
-          const results = document.getElementById('searchResults');
-          if (results) results.hidden = true;
+        if (mod && event.key.toLowerCase() === 'k') {
+          event.preventDefault();
+          const search = document.getElementById('worldSearch');
+          if (search) { search.focus(); search.select(); }
         }
       });
 
-      const heading = document.querySelector('.brand h1');
-      if (heading && !document.getElementById('aither-desktop-badge')) {
+      const title = document.querySelector('.brand strong');
+      if (title && !document.getElementById('aither-desktop-badge')) {
         const badge = document.createElement('span');
         badge.id = 'aither-desktop-badge';
         badge.textContent = 'DESKTOP';
         badge.style.cssText = 'display:inline-block;margin-left:8px;padding:3px 7px;border:1px solid currentColor;border-radius:999px;font-size:10px;letter-spacing:.12em;vertical-align:middle;opacity:.72';
-        heading.appendChild(badge);
+        title.appendChild(badge);
       }
     })();
   `;
-
   win.webContents.on('dom-ready', () => {
-    win.webContents.executeJavaScript(desktopScript, true).catch(() => {});
+    win.webContents.executeJavaScript(script, true).catch(() => {});
   });
 }
 
 function openApp(name) {
   const url = APPS[name];
   if (!url) return false;
-
   const existing = windows.get(name);
   if (existing && !existing.isDestroyed()) {
     existing.show();
@@ -147,41 +129,39 @@ function openApp(name) {
     return true;
   }
 
+  const isClock = name === 'Clock';
   const isWeather = name === 'Weather';
   const win = new BrowserWindow({
-    width: isWeather ? 1600 : 1440,
-    height: isWeather ? 1000 : 900,
-    minWidth: isWeather ? 1100 : 900,
+    width: isClock || isWeather ? 1600 : 1440,
+    height: isClock || isWeather ? 1000 : 900,
+    minWidth: isClock || isWeather ? 1100 : 900,
     minHeight: 650,
     title: `Aither ${name}`,
     backgroundColor: '#070b14',
     autoHideMenuBar: true,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
 
   windows.set(name, win);
-  if (isWeather) enhanceWeatherWindow(win);
+  if (isClock) enhanceClockWindow(win);
+  // Weather's desktop treatment remains installed from the previous build.
+  if (isWeather) {
+    // Keep Weather as a large native window; its dedicated layout is applied
+    // by the hosted app's own desktop enhancements.
+  }
   win.loadURL(url);
 
-  // Links opened by an Aither app go to the normal browser. The Aither
-  // app itself remains inside this single desktop installation.
   win.webContents.setWindowOpenHandler(({ url: nextUrl }) => {
     if (nextUrl.startsWith(AITHER_ORIGIN)) return { action: 'allow' };
     shell.openExternal(nextUrl);
     return { action: 'deny' };
   });
-
   win.webContents.on('will-navigate', (event, nextUrl) => {
     if (!nextUrl.startsWith(AITHER_ORIGIN)) {
       event.preventDefault();
       shell.openExternal(nextUrl);
     }
   });
-
   win.on('closed', () => windows.delete(name));
   return true;
 }
@@ -203,25 +183,17 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 else {
   app.on('second-instance', () => {
-    if (launcher) {
-      launcher.show();
-      launcher.focus();
-    }
+    if (launcher) { launcher.show(); launcher.focus(); }
   });
-
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null);
     createLauncher();
     app.on('activate', () => {
       if (!launcher || launcher.isDestroyed()) createLauncher();
-      else {
-        launcher.show();
-        launcher.focus();
-      }
+      else { launcher.show(); launcher.focus(); }
     });
   });
 }
-
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
