@@ -2,10 +2,6 @@ const { app, BrowserWindow, shell, ipcMain, Menu } = require('electron');
 const path = require('path');
 
 // One Aither Apps desktop install is the only desktop install users need.
-// Every user-facing Aither app is opened from this launcher using its
-// existing GitHub Pages deployment. No per-app desktop downloads are used.
-// AitherBackend is infrastructure, AitherTech is excluded, and Aither Admin
-// stays intentionally hidden from the launcher.
 const APPS = Object.freeze({
   Weather: 'https://aitherforge.github.io/AitherWeather/',
   Clock: 'https://aitherforge.github.io/AitherClock/',
@@ -19,181 +15,41 @@ const APPS = Object.freeze({
   AI: 'https://aitherforge.github.io/AitherAI/',
   Web: 'https://aitherforge.github.io/AitherWeb/'
 });
-
 const AITHER_ORIGIN = 'https://aitherforge.github.io/';
 let launcher;
 const windows = new Map();
 
 function createLauncher() {
-  launcher = new BrowserWindow({
-    width: 1440,
-    height: 920,
-    minWidth: 1050,
-    minHeight: 680,
-    title: 'Aither Apps',
-    backgroundColor: '#070b14',
-    autoHideMenuBar: true,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      preload: path.join(__dirname, 'preload.js')
-    }
-  });
+  launcher = new BrowserWindow({ width: 1440, height: 920, minWidth: 1050, minHeight: 680, title: 'Aither Apps', backgroundColor: '#070b14', autoHideMenuBar: true,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.js') } });
   launcher.loadFile(path.join(__dirname, 'index.html'));
 }
 
-// Clock gets its own desktop-first presentation while the hosted app keeps
-// its mobile-first design. We reuse existing Clock controls rather than
-// creating a second clock implementation.
 function enhanceClockWindow(win) {
-  const desktopCss = `
-    :root { --aither-desktop-gap: 18px; }
-    body { min-width: 1100px !important; }
-    .app { width: min(1600px, calc(100vw - 48px)) !important; max-width: none !important; }
-    .topbar { position: sticky; top: 0; z-index: 100; padding: 12px 0; backdrop-filter: blur(20px); }
-    .clock-card { display: grid !important; grid-template-columns: minmax(420px, 1fr) minmax(430px, 1fr) !important; align-items: center; gap: 28px; padding: 34px !important; }
-    .clock-card .date, .clock-card .digital, .clock-card .period { grid-column: 1; }
-    .clock-card .analog { grid-column: 2; grid-row: 1 / span 3; width: min(520px, 34vw) !important; margin: 0 auto !important; }
-    .digital { font-size: clamp(64px, 7vw, 120px) !important; }
-    .tabs { position: sticky !important; top: 72px !important; z-index: 90; max-width: none !important; }
-    .panel { padding: 24px !important; }
-    .settings-grid { grid-template-columns: repeat(4, minmax(180px, 1fr)) !important; }
-    .world-grid { grid-template-columns: repeat(4, minmax(210px, 1fr)) !important; }
-    .sound-box, .update-box, .backend-box { grid-template-columns: minmax(0, 1fr) auto !important; }
-    .tool-display { font-size: clamp(64px, 7vw, 110px) !important; }
-    .timer-inputs input { width: 140px !important; font-size: 28px !important; }
-    .alarms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    footer { padding-bottom: 24px; }
-    @media (max-width: 1200px) {
-      body { min-width: 900px !important; }
-      .clock-card { grid-template-columns: 1fr !important; }
-      .clock-card .analog { grid-column: 1; grid-row: auto; width: min(430px, 45vw) !important; }
-      .settings-grid { grid-template-columns: repeat(3, minmax(160px, 1fr)) !important; }
-      .world-grid { grid-template-columns: repeat(3, minmax(190px, 1fr)) !important; }
-    }
-  `;
-  const script = `
-    (() => {
-      document.documentElement.dataset.aitherDesktop = 'true';
-      const style = document.createElement('style');
-      style.id = 'aither-desktop-clock-style';
-      style.textContent = ${JSON.stringify(desktopCss)};
-      document.head.appendChild(style);
+  const css = `:root{--aither-desktop-gap:18px}body{min-width:1100px!important}.app{width:min(1600px,calc(100vw - 48px))!important;max-width:none!important}.topbar{position:sticky;top:0;z-index:100;padding:12px 0;backdrop-filter:blur(20px)}.clock-card{display:grid!important;grid-template-columns:minmax(420px,1fr) minmax(430px,1fr)!important;align-items:center;gap:28px;padding:34px!important}.clock-card .date,.clock-card .digital,.clock-card .period{grid-column:1}.clock-card .analog{grid-column:2;grid-row:1/span 3;width:min(520px,34vw)!important;margin:0 auto!important}.digital{font-size:clamp(64px,7vw,120px)!important}.tabs{position:sticky!important;top:72px!important;z-index:90}.panel{padding:24px!important}.settings-grid{grid-template-columns:repeat(4,minmax(180px,1fr))!important}.world-grid{grid-template-columns:repeat(4,minmax(210px,1fr))!important}.tool-display{font-size:clamp(64px,7vw,110px)!important}.alarms{grid-template-columns:repeat(2,minmax(0,1fr))}@media(max-width:1200px){body{min-width:900px!important}.clock-card{grid-template-columns:1fr!important}.clock-card .analog{grid-column:1;grid-row:auto;width:min(430px,45vw)!important}.settings-grid{grid-template-columns:repeat(3,minmax(160px,1fr))!important}.world-grid{grid-template-columns:repeat(3,minmax(190px,1fr))!important}}`;
+  const script = `(()=>{document.documentElement.dataset.aitherDesktop='true';const s=document.createElement('style');s.id='aither-desktop-clock-style';s.textContent=${JSON.stringify(css)};document.head.appendChild(s);const shortcuts={'1':'clockPanel','2':'worldPanel','3':'stopwatchPanel','4':'timerPanel','5':'alarmPanel'};document.addEventListener('keydown',e=>{if(e.defaultPrevented)return;const editing=['INPUT','TEXTAREA','SELECT'].includes(e.target?.tagName)||e.target?.isContentEditable;const mod=e.ctrlKey||e.metaKey;if(!editing&&!mod&&shortcuts[e.key]){const t=document.querySelector('.tab[data-panel="'+shortcuts[e.key]+'"]');if(t){e.preventDefault();t.click()}}if(!editing&&!mod&&e.key.toLowerCase()==='f'){const b=document.getElementById('fullscreenBtn');if(b){e.preventDefault();b.click()}}if(mod&&e.key.toLowerCase()==='k'){e.preventDefault();const x=document.getElementById('worldSearch');if(x){x.focus();x.select()}}});})();`;
+  win.webContents.on('dom-ready',()=>win.webContents.executeJavaScript(script,true).catch(()=>{}));
+}
 
-      const shortcuts = {
-        '1': 'clockPanel', '2': 'worldPanel', '3': 'stopwatchPanel',
-        '4': 'timerPanel', '5': 'alarmPanel'
-      };
-      document.addEventListener('keydown', (event) => {
-        if (event.defaultPrevented) return;
-        const tag = event.target && event.target.tagName;
-        const editing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || event.target?.isContentEditable;
-        const mod = event.ctrlKey || event.metaKey;
-        if (!editing && !mod && shortcuts[event.key]) {
-          const tab = document.querySelector('.tab[data-panel="' + shortcuts[event.key] + '"]');
-          if (tab) { event.preventDefault(); tab.click(); }
-        }
-        if (!editing && !mod && event.key.toLowerCase() === 'f') {
-          const button = document.getElementById('fullscreenBtn');
-          if (button) { event.preventDefault(); button.click(); }
-        }
-        if (mod && event.key.toLowerCase() === 'k') {
-          event.preventDefault();
-          const search = document.getElementById('worldSearch');
-          if (search) { search.focus(); search.select(); }
-        }
-      });
-
-      const title = document.querySelector('.brand strong');
-      if (title && !document.getElementById('aither-desktop-badge')) {
-        const badge = document.createElement('span');
-        badge.id = 'aither-desktop-badge';
-        badge.textContent = 'DESKTOP';
-        badge.style.cssText = 'display:inline-block;margin-left:8px;padding:3px 7px;border:1px solid currentColor;border-radius:999px;font-size:10px;letter-spacing:.12em;vertical-align:middle;opacity:.72';
-        title.appendChild(badge);
-      }
-    })();
-  `;
-  win.webContents.on('dom-ready', () => {
-    win.webContents.executeJavaScript(script, true).catch(() => {});
-  });
+function enhanceNotesWindow(win) {
+  const css = `body{min-width:1050px!important}.app{width:100%!important;max-width:none!important;display:grid!important;grid-template-columns:300px minmax(520px,1fr)!important;min-height:100vh}.sidebar{position:sticky!important;top:0;height:100vh!important;overflow:auto}.main{min-width:0}.topbar{position:sticky!important;top:0!important;z-index:50;backdrop-filter:blur(22px)}.content{max-width:none!important;padding:26px 34px!important}.notes{grid-template-columns:repeat(3,minmax(230px,1fr))!important;gap:16px!important}.note-card{min-height:190px}.search{min-width:360px}.editor{position:fixed!important;inset:0!important;z-index:200!important;display:flex!important;flex-direction:column!important}.editor textarea{flex:1!important;min-height:0!important}.settings-panel{position:fixed!important;inset:0!important;z-index:210!important;overflow:auto!important}.settings-card{max-width:1100px!important;margin:30px auto!important}.mobile-nav,.mobile-brand{display:none!important}@media(max-width:1250px){.app{grid-template-columns:250px minmax(500px,1fr)!important}.notes{grid-template-columns:repeat(2,minmax(220px,1fr))!important}}`;
+  const script = `(()=>{document.documentElement.dataset.aitherDesktop='true';const s=document.createElement('style');s.id='aither-desktop-notes-style';s.textContent=${JSON.stringify(css)};document.head.appendChild(s);document.addEventListener('keydown',e=>{if(e.defaultPrevented)return;const editing=['INPUT','TEXTAREA','SELECT'].includes(e.target?.tagName)||e.target?.isContentEditable;const mod=e.ctrlKey||e.metaKey;if(mod&&e.key.toLowerCase()==='k'){e.preventDefault();const x=document.getElementById('search');if(x){x.focus();x.select()}}if(mod&&e.key.toLowerCase()==='n'&&!editing){e.preventDefault();document.getElementById('newNote')?.click()}if(e.key==='Escape'){document.getElementById('closeEditor')?.click();document.getElementById('settingsClose')?.click()}});const title=document.querySelector('.brand b');if(title&&!document.getElementById('aither-desktop-badge')){const b=document.createElement('span');b.id='aither-desktop-badge';b.textContent='DESKTOP';b.style.cssText='display:inline-block;margin-left:8px;padding:3px 7px;border:1px solid currentColor;border-radius:999px;font-size:10px;letter-spacing:.12em;vertical-align:middle;opacity:.72';title.appendChild(b)}})();`;
+  win.webContents.on('dom-ready',()=>win.webContents.executeJavaScript(script,true).catch(()=>{}));
 }
 
 function openApp(name) {
-  const url = APPS[name];
-  if (!url) return false;
-  const existing = windows.get(name);
-  if (existing && !existing.isDestroyed()) {
-    existing.show();
-    existing.focus();
-    return true;
-  }
-
-  const isClock = name === 'Clock';
-  const isWeather = name === 'Weather';
-  const win = new BrowserWindow({
-    width: isClock || isWeather ? 1600 : 1440,
-    height: isClock || isWeather ? 1000 : 900,
-    minWidth: isClock || isWeather ? 1100 : 900,
-    minHeight: 650,
-    title: `Aither ${name}`,
-    backgroundColor: '#070b14',
-    autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
-  });
-
-  windows.set(name, win);
-  if (isClock) enhanceClockWindow(win);
-  // Weather's desktop treatment remains installed from the previous build.
-  if (isWeather) {
-    // Keep Weather as a large native window; its dedicated layout is applied
-    // by the hosted app's own desktop enhancements.
-  }
+  const url=APPS[name]; if(!url)return false;
+  const existing=windows.get(name); if(existing&&!existing.isDestroyed()){existing.show();existing.focus();return true}
+  const isLarge=['Weather','Clock','Notes'].includes(name);
+  const win=new BrowserWindow({width:isLarge?1600:1440,height:isLarge?1000:900,minWidth:isLarge?1050:900,minHeight:650,title:`Aither ${name}`,backgroundColor:'#070b14',autoHideMenuBar:true,webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true}});
+  windows.set(name,win);
+  if(name==='Clock')enhanceClockWindow(win);
+  if(name==='Notes')enhanceNotesWindow(win);
   win.loadURL(url);
-
-  win.webContents.setWindowOpenHandler(({ url: nextUrl }) => {
-    if (nextUrl.startsWith(AITHER_ORIGIN)) return { action: 'allow' };
-    shell.openExternal(nextUrl);
-    return { action: 'deny' };
-  });
-  win.webContents.on('will-navigate', (event, nextUrl) => {
-    if (!nextUrl.startsWith(AITHER_ORIGIN)) {
-      event.preventDefault();
-      shell.openExternal(nextUrl);
-    }
-  });
-  win.on('closed', () => windows.delete(name));
-  return true;
+  win.webContents.setWindowOpenHandler(({url:nextUrl})=>{if(nextUrl.startsWith(AITHER_ORIGIN))return{action:'allow'};shell.openExternal(nextUrl);return{action:'deny'}});
+  win.webContents.on('will-navigate',(event,nextUrl)=>{if(!nextUrl.startsWith(AITHER_ORIGIN)){event.preventDefault();shell.openExternal(nextUrl)}});
+  win.on('closed',()=>windows.delete(name)); return true;
 }
-
-function openExternal(url) {
-  if (typeof url === 'string' && /^https:\/\//.test(url)) {
-    shell.openExternal(url);
-    return true;
-  }
-  return false;
-}
-
-ipcMain.handle('apps:list', () => APPS);
-ipcMain.handle('apps:open', (_event, name) => openApp(name));
-ipcMain.handle('apps:external', (_event, url) => openExternal(url));
-ipcMain.handle('app:version', () => app.getVersion());
-
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) app.quit();
-else {
-  app.on('second-instance', () => {
-    if (launcher) { launcher.show(); launcher.focus(); }
-  });
-  app.whenReady().then(() => {
-    Menu.setApplicationMenu(null);
-    createLauncher();
-    app.on('activate', () => {
-      if (!launcher || launcher.isDestroyed()) createLauncher();
-      else { launcher.show(); launcher.focus(); }
-    });
-  });
-}
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+function openExternal(url){if(typeof url==='string'&&/^https:\/\//.test(url)){shell.openExternal(url);return true}return false}
+ipcMain.handle('apps:list',()=>APPS);ipcMain.handle('apps:open',(_event,name)=>openApp(name));ipcMain.handle('apps:external',(_event,url)=>openExternal(url));ipcMain.handle('app:version',()=>app.getVersion());
+const gotLock=app.requestSingleInstanceLock();if(!gotLock)app.quit();else{app.on('second-instance',()=>{if(launcher){launcher.show();launcher.focus()}});app.whenReady().then(()=>{Menu.setApplicationMenu(null);createLauncher();app.on('activate',()=>{if(!launcher||launcher.isDestroyed())createLauncher();else{launcher.show();launcher.focus()}})})}app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit()});
